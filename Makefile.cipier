@@ -1,7 +1,7 @@
 # $FreeBSD$
 
 PORTNAME=	cipier
-PORTVERSION=	1.6
+PORTVERSION=	1.7
 CATEGORIES=	devel
 
 MAINTAINER=	koue@chaosophia.net
