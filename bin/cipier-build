@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Author: 2017-2019 Nikola Kolev koue@chaosophia.net
+# Author: 2017-2020, Nikola Kolev, koue@chaosophia.net
 
 ######################################################
 ###
@@ -9,9 +9,8 @@
 ### configuration
 DEBUG=0
 POUDRIERE_DATA=/usr/local/poudriere/data/.m
-ZROOT_POUDRIERE=zrootlab04/poudriere
+ZROOT_POUDRIERE=zroot/poudriere
 PORTSDIR=/usr/ports
-WORKDIR=/tmp
 
 ### print message
 msg_fn() {
@@ -20,19 +19,21 @@ msg_fn() {
 
 ### print debug message
 debug_fn() {
+	### return if DEBUG not defined
+	[ -z "${DEBUG}" ] && return
 	### print message if debug enabled
-	[ ! -z ${DEBUG} ] && [ ${DEBUG} -ne 0 ] && echo "=cipier= [DEBUG] ${1}"
+	[ "${DEBUG}" -eq 1 ] && msg_fn "[DEBUG] ${1}"
 }
 
 ### validate string, allow alnum, - and _ chars
 validate_string_fn() {
 	### value is empty
-	[ -z ${1} ] && return 1
+	[ -z "${1}" ] && return 1
 	### print debug message
 	debug_fn "validate_string_fn ${1}"
 	###
 	RESULT=`echo "${1}" | tr -d '[:alnum:]-_'`
-	if [ -z ${RESULT} ]
+	if [ -z "${RESULT}" ]
 	then
 		return 0
 	else
@@ -43,12 +44,12 @@ validate_string_fn() {
 ### check for available poudriere jails
 validate_freebsd_version_fn() {
 	### value is empty
-	[ -z ${1} ] && return 1
+	[ -z "${1}" ] && return 1
 	### print debug message
 	debug_fn "validate_freebsd_version_fn ${1}"
 	###
-	RESULT=`zfs list -t snapshot | grep "/poudriere/jails/${1}" | tail -1 | awk '{print $1}'`
-	if [ -z ${RESULT} ]
+	RESULT=`zfs list -t snapshot | grep "/poudriere/jails/$1" | tail -1 | awk '{print $1}'`
+	if [ -z "${RESULT}" ]
 	then
 		return 1
 	else
@@ -62,7 +63,7 @@ usage_fn() {
 }
 
 ### check for POUDIERE_DATA directory
-if [ ! -d ${POUDRIERE_DATA} ]
+if [ ! -d "${POUDRIERE_DATA}" ]
 then
 	msg_fn "Missing POUDIERE_DATA directory: ${POUDRIERE_DATA}"
 	exit 1
@@ -70,23 +71,23 @@ fi
 
 ### check for poudriere zfs pool
 TMPZFS=`zfs list | awk '{print $1}' | grep ${ZROOT_POUDRIERE} | head -1`
-if [ -z ${TMPZFS} ]
+if [ -z "${TMPZFS}" ]
 then
 	msg_fn "Missing ZROOT_POUDRIERE pool: ${ZROOT_POUDRIERE}"
 	exit 1
 fi
 
 ### check for ports directory
-if [ ! -d ${PORTSDIR} ]
+if [ ! -d "${PORTSDIR}" ]
 then
 	msg_fn "Missing PORTSDIR directory: ${PORTSDIR}"
 	exit 1
 fi
 
 ### check for working directory
-if [ ! -d ${WORKDIR} ]
+if [ ! -d "/tmp" ]
 then
-	msg_fn "Missing WORKDIR directory: ${WORKDIR}"
+	msg_fn "Missing WORKDIR directory: /tmp"
 	exit 1
 fi
 
@@ -96,7 +97,8 @@ then
 	usage_fn
 fi
 
-if [ ! -f ${1} ]
+### first one is the Makefile
+if [ ! -f "${1}" ]
 then
 	msg_fn "Makefile does not exist"
 	exit 1
@@ -105,11 +107,11 @@ MKCIPIER=`pwd`/${1}
 
 ### print error and exit if FreeBSD version is not available
 validate_freebsd_version_fn ${2} || { msg_fn "FreeBSD version ${2} is not supported"; exit 1; }
-FREEBSDVERSION=${2}
+FREEBSDVERSION="${2}"
 
 ### validate checksum string
 validate_string_fn ${3} || { msg_fn "Incorrect value: checksum ${3}"; exit 1; }
-CHECKSUM=${3}
+CHECKSUM="${3}"
 
 M_VAL=`make -V GH_ACCOUNT -f ${MKCIPIER}`
 validate_string_fn ${M_VAL} || { msg_fn "Incorrect value: GH_ACCOUNT ${M_VAL}"; exit 1; }
@@ -121,47 +123,50 @@ GITREPO=${M_VAL}
 ### cleanup function
 cleanup_fn() {
 	###
-	[ ! -z ${1} ] && DISTFILE=${1}
-	[ ! -z ${2} ] && WRKSRC=${2}
+	[ ! -z "${1}" ] && DISTFILE="${1}"
+	[ ! -z "${2}" ] && WRKSRC="${2}"
 	### delete source if exists
-	[ -d ${WORKDIR}/${CHECKSUM} ] && rm -rf ${WORKDIR}/${CHECKSUM}
+	[ -d "/tmp/${CHECKSUM}" ] && rm -rf /tmp/${CHECKSUM}
 	### umount pkg cache
 	umount ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/var/cache/pkg
 	### kill the jail if its running
 	JAIL=`jls | grep ${CHECKSUM}-default | head -1 | awk '{print $3}'`
-	[ -z ${JAIL} ] || poudriere jail -j ${CHECKSUM} -k
+	[ -z "${JAIL}" ] || poudriere jail -j ${CHECKSUM} -k
 	### delete the jail if exists
-	POUDRIERE=`poudriere jail -l | grep ${CHECKSUM} | awk '{print $1}'`
-	[ -z ${POUDRIERE} ] || { yes | poudriere jail -d -j ${CHECKSUM}; }
+	POUDRIERE=`poudriere jail -l | grep "${CHECKSUM}" | awk '{print $1}'`
+	[ -z "${POUDRIERE}" ] || { yes | poudriere jail -d -j ${CHECKSUM}; }
 	### destroy zfs tank if exists
 	ZFSROOT=`zfs list | grep "/poudriere/jails/${CHECKSUM}" | awk '{print $1}'`
-	[ -z ${ZFSROOT} ] || zfs destroy -r ${ZROOT_POUDRIERE}/jails/${CHECKSUM}
+	[ -z "${ZFSROOT}" ] || zfs destroy -r ${ZROOT_POUDRIERE}/jails/${CHECKSUM}
 	### delete all build files
-	if [ ! -z ${WRKSRC} ]
+	if [ ! -z "${WRKSRC}" ]
 	then
-		[ -d ${WORKDIR}/${WRKSRC} ] && rm -rf ${WORKDIR}/${WRKSRC}
+		[ -d "/tmp/${WRKSRC}" ] && rm -rf /tmp/${WRKSRC}
 	fi
-	[ -d ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port ] && rm -rf ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port
-	if [ ! -z ${DISTFILE} ]
+	[ -d "/tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port" ] && rm -rf /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port
+	if [ ! -z "${DISTFILE}" ]
 	then
-		[ -f ${PORTSDIR}/distfiles/${DISTFILE} ] && rm -f ${PORTSDIR}/distfiles/${DISTFILE}
+		[ -f "${PORTSDIR}/distfiles/${DISTFILE}" ] && rm -f ${PORTSDIR}/distfiles/${DISTFILE}
 	fi
 
 	exit 1
 }
 
+### print error and exit if FreeBSD version is not available
+validate_freebsd_version_fn ${FREEBSDVERSION} || { msg_fn "FreeBSD version ${FREEBSDVERSION} not supported"; exit 1; }
+
 ### print error and exit if this build already exists
-[ -d ${WORKDIR}/${CHECKSUM} ] && msg_fn "${WORKDIR}/${CHECKSUM} already exists" && cleanup_fn
+[ -d "/tmp/${CHECKSUM}" ] && msg_fn "/tmp/${CHECKSUM} already exists" && cleanup_fn
 
 ### clone source GitHub
-debug_fn "git clone https://github.com/${GITUSER}/${GITREPO}.git ${WORKDIR}/${CHECKSUM}"
-git clone https://github.com/${GITUSER}/${GITREPO}.git ${WORKDIR}/${CHECKSUM} || { msg_fn "git clone failed"; cleanup_fn; }
+debug_fn "git clone https://github.com/${GITUSER}/${GITREPO}.git /tmp/${CHECKSUM}"
+git clone https://github.com/${GITUSER}/${GITREPO}.git /tmp/${CHECKSUM} || { msg_fn "git clone failed"; cleanup_fn; }
 
 ### checkout the commit which will be build
-cd ${WORKDIR}/${CHECKSUM} && git checkout ${REPOSHA} || { msg_fn "git checkout failed"; cleanup_fn; }
+cd /tmp/${CHECKSUM} && git checkout ${REPOSHA} || { msg_fn "git checkout failed"; cleanup_fn; }
 ### To be able to build the source Makefile.cipier file must exists in the top directory
 ### Makefile.cipier is based on /usr/ports/[group]/[port]/Makefile
-### Copy Makefile.cipier defined as argument
+### Copy Makefile.cipier
 cp ${MKCIPIER} ./Makefile.cipier
 ### Check if Makefile.cipier exists
 [ ! -f Makefile.cipier ] && msg_fn "Missing Makefile.cipier file" && cleanup_fn
@@ -172,14 +177,18 @@ cp ${MKCIPIER} ./Makefile.cipier
 ###
 ### if 'makesum' task exists something is wrong with the file
 ### and the build script will be not able to generate port makesum
+debug_fn "Check for all-depends-list and makesum targets"
 cat Makefile.cipier | grep -q "all-depends-list:" && msg_fn "Incorrect Makefile.cipier: all-depends-list" && cleanup_fn
 cat Makefile.cipier | grep -q "makesum:" && msg_fn "Incorrect Makefile.cipier: makesum" && cleanup_fn
 
 ### List all port dependencies.
+debug_fn "Get all-depends-list"
 make -f Makefile.cipier all-depends-list | rev | cut -d '/' -f 1 | rev > poudriere-packages
+cat poudriere-packages
+debug_fn "Dependencies list end"
 DEPENDENCY_PACKAGES=`wc -l poudriere-packages | awk '{print $1}'`
 ### Every port has at least one dependency: pkg
-[ ${DEPENDENCY_PACKAGES} -eq 0 ] && msg_fn "No dependecies" && cleanup_fn
+[ "${DEPENDENCY_PACKAGES}" -eq 0 ] && msg_fn "No dependecies" && cleanup_fn
 ### Some ports have different package name
 ### Replace port name with its package name
 sed -i.bak 's/expat2/expat/g' poudriere-packages
@@ -199,49 +208,61 @@ mount_nullfs /var/cache/pkg ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/var/cache/
 JAILID=`jls | grep ${CHECKSUM} | tail -1 | awk '{print $1}'`
 for i in `cat poudriere-packages`; do pkg -j ${JAILID} install -y $i; done
 
-mkdir ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port
+mkdir /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port
 ### Edit port version with current commit has value
-cat ${WORKDIR}/${CHECKSUM}/Makefile.cipier | sed "s/PORTVERSION=.*/PORTVERSION= ${CHECKSUM}${REPOSHA}/g" > ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier
+cat /tmp/${CHECKSUM}/Makefile.cipier | sed "s/PORTVERSION=.*/PORTVERSION= ${CHECKSUM}${REPOSHA}/g" > /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier
 ### DISTFILES
-###
-### 2018-07-12
-### Support for multiple DISTFILES has been implemented. Keep the follow two lines for troubleshooting.
-###
-###DISTFILES_COUNT=`make -V DISTFILES -f ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | wc -w`
-###[ ${DISTFILES_COUNT} -ne 1 ] && echo "=cipier= Multiple DISTFILES. Not implemented." && cleanup_fn
-###
-### Get DISTFILE name
-PORTDISTFILE=`make -V DISTFILES -f ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | awk '{print $1}'`
-#PORTWRKSRC=`make -V WRKSRC -f ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | rev | cut -d '/' -f 1 | rev`
-PORTWRKSRC=`make -V WRKSRC -f ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | sed 's|.*/work/||' | cut -d '/' -f 1`
-mv -v ${WORKDIR}/${CHECKSUM} ${WORKDIR}/${PORTWRKSRC}
-cd ${WORKDIR}/
+PORTVERSION=`make -V PORTVERSION -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier`
+debug_fn "PORTVERSION ${PORTVERSION}"
+DISTFILES_COUNT=`make -V DISTFILES -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | wc -w`
+debug_fn "DISTFILES_COUNT ${DISTFILES_COUNT}"
+### single of multiple distfiles
+if [ "${DISTFILES_COUNT}" -eq 1 ]
+then
+	### single
+	PORTDISTFILE=`make -V DISTFILES -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | awk '{print $1}'`
+else
+	### multiple
+	PORTDISTFILE=`make -V DISTFILES -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | sed -n "s/.* \(.*${PORTVERSION}[a-zA-Z0-9_\.]*\).*/\1/p"`
+fi
+debug_fn "PORTDISTFILE ${PORTDISTFILE}"
+PORTWRKSRC=`make -V WRKSRC -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | sed 's|.*/work/||' | cut -d '/' -f 1`
+debug_fn "PORTWRKSRC ${PORTWRKSRC}"
+mv -v /tmp/${CHECKSUM} /tmp/${PORTWRKSRC}
+cd /tmp/
+rm -rf ${PORTWRKSRC}/.git
+debug_fn "Create archive ${PORTDISTFILE}"
 tar zcvf ${PORTDISTFILE} ${PORTWRKSRC}/
 mv ${PORTDISTFILE} ${PORTSDIR}/distfiles/
-cd ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port
+cd /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port
 ### The port archive is already in /usr/ports/distfile. Call 'make fetch' to download additional archives
 ### if multiple DISTFILES exist.
+debug_fn "Run make fetch"
 make -f Makefile.cipier fetch
 ### Create makesum the new port
+debug_fn "Run make makesum"
+### bsd.ports.mk make makesum fetch hack
+### makesum target executes 'make fetch' and it fails with don't know how to
+### fetch because 'Makefile' doesn't exist and '-f' option is not passed
+cp -f Makefile.cipier Makefile
 make -f Makefile.cipier makesum
 ### Copy new port into the new poudriere build jail
-cp -rv ${WORKDIR}/${GITREPO}-${CHECKSUM}${REPOSHA}-port ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/
+cp -rv /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/
 ### Create build script
 echo "#!/bin/sh" > ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/cipier-build.sh
 echo "cd /${GITREPO}-${CHECKSUM}${REPOSHA}-port" >> ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/cipier-build.sh
 echo "make -f Makefile.cipier build" >> ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/cipier-build.sh
 echo 'echo $?' >> ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/cipier-build.sh
-#cat ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/cipier-build.sh
+cat ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/cipier-build.sh
 chmod +x ${POUDRIERE_DATA}/${CHECKSUM}-default/ref/cipier-build.sh
 JAILID=`jls | grep ${CHECKSUM} | head -1 | awk '{print $1}'`
 ### Build the port and create log file
-jexec ${JAILID} /cipier-build.sh | tee ${WORKDIR}/${GITUSER}-${GITREPO}-${CHECKSUM}${REPOSHA}.log
+jexec ${JAILID} /cipier-build.sh | tee /tmp/${GITUSER}-${GITREPO}-${CHECKSUM}${REPOSHA}.txt
 
 msg_fn "Succeed"
 ### Run cleanup function to remove all files
 ###
-### 2018-07-12
 ### Currently the script removes only port archive from /usr/ports/distfiles
-### TODO: find way to remove multiple distfiles if exist
+### TODO: find way to remove multiple distfiles it exist
 cleanup_fn ${PORTDISTFILE} ${PORTWRKSRC}
 ### [EOF]
