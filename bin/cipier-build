@@ -213,7 +213,11 @@ mkdir /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port
 cat /tmp/${CHECKSUM}/Makefile.cipier | sed "s/PORTVERSION=.*/PORTVERSION= ${CHECKSUM}${REPOSHA}/g" > /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier
 ### DISTFILES
 PORTVERSION=`make -V PORTVERSION -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier`
+GH_ACCOUNT=`make -V GH_ACCOUNT -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier`
+GH_PROJECT=`make -V GH_PROJECT -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier`
 debug_fn "PORTVERSION ${PORTVERSION}"
+debug_fn "GH_ACCOUNT ${GH_ACCOUNT}"
+debug_fn "GH_PROJECT ${GH_PROJECT}"
 DISTFILES_COUNT=`make -V DISTFILES -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | wc -w`
 debug_fn "DISTFILES_COUNT ${DISTFILES_COUNT}"
 ### single of multiple distfiles
@@ -223,7 +227,7 @@ then
 	PORTDISTFILE=`make -V DISTFILES -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | awk '{print $1}'`
 else
 	### multiple
-	PORTDISTFILE=`make -V DISTFILES -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | sed -n "s/.* \(.*${PORTVERSION}[a-zA-Z0-9_\.]*\).*/\1/p"`
+	PORTDISTFILE=`make -V DISTFILES -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | sed -n "s/.*\(.*${GH_ACCOUNT}-${GH_PROJECT}-${PORTVERSION}[a-zA-Z0-9_\.]*\).*/\1/p"`
 fi
 debug_fn "PORTDISTFILE ${PORTDISTFILE}"
 PORTWRKSRC=`make -V WRKSRC -f /tmp/${GITREPO}-${CHECKSUM}${REPOSHA}-port/Makefile.cipier | sed 's|.*/work/||' | cut -d '/' -f 1`
